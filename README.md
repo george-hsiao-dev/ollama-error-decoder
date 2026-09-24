@@ -7,4 +7,4 @@ Paste an Ollama error log and get likely causes plus a short recovery checklist 
 - Uses transparent pattern matching
 - Includes a generic diagnostic path when no exact pattern matches
 
-Need a tested local AI recovery plan? [Hire me on Fiverr](https://www.fiverr.com/george_hsiao).
+Need a tested local AI recovery plan? [Hire me on Fiverr](https://www.fiverr.com/s/p3d86wy).
