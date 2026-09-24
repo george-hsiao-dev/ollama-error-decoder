@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ollama Error Decoder</title>
+  <meta name="description" content="Paste an Ollama error log and get likely causes, safe checks, and practical next steps. Runs locally in your browser.">
+  <style>
+    :root{--bg:#071018;--panel:#0d1b27;--panel2:#112638;--line:#29485d;--text:#eef8ff;--muted:#9cb2c1;--cyan:#48d7e8;--green:#55e39e;--amber:#ffc65c;--red:#ff7287}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0,#163f53 0,transparent 34%),var(--bg);color:var(--text);font:16px/1.5 Inter,Segoe UI,Arial,sans-serif}
+    main{max-width:1120px;margin:auto;padding:40px 20px 64px}.eyebrow{color:var(--cyan);font-size:.76rem;font-weight:850;letter-spacing:.13em;text-transform:uppercase}h1{font-size:clamp(2.3rem,6vw,4.7rem);line-height:.98;margin:10px 0 18px}.lead{max-width:760px;color:var(--muted);font-size:1.05rem}
+    .grid{display:grid;grid-template-columns:1.03fr .97fr;gap:20px;margin-top:28px}.card{background:linear-gradient(150deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 18px 54px #0005}h2{margin:0 0 13px;font-size:1.13rem}
+    textarea{width:100%;min-height:330px;resize:vertical;background:#06111a;color:#dff6ff;border:1px solid var(--line);border-radius:12px;padding:15px;font:14px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}button,.btn{border:0;border-radius:10px;padding:11px 15px;font:inherit;font-weight:850;cursor:pointer;text-decoration:none}.primary{background:var(--cyan);color:#04151c}.ghost{background:#172e3e;color:var(--text);border:1px solid var(--line)}
+    .empty{color:var(--muted);padding:40px 4px}.finding{border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:12px;padding:15px;margin:0 0 12px;background:#081722}.finding.high{border-left-color:var(--red)}.finding.low{border-left-color:var(--green)}.finding h3{margin:0 0 4px;font-size:1rem}.finding p{margin:5px 0;color:var(--muted)}.finding ol{margin:9px 0 0;padding-left:22px}.finding code{color:#d9f7ff}.pill{display:inline-block;margin-right:7px;padding:3px 8px;border-radius:99px;background:#173247;color:#cceafa;font-size:.72rem;font-weight:800}
+    .privacy{margin-top:12px;color:var(--muted);font-size:.8rem}.cta{margin-top:20px;display:flex;align-items:center;justify-content:space-between;gap:20px}.cta p{color:var(--muted);margin:5px 0 0}.btn{display:inline-block;background:var(--cyan);color:#04151c;white-space:nowrap}footer{margin-top:27px;color:#718999;font-size:.78rem}
+    @media(max-width:800px){.grid{grid-template-columns:1fr}.cta{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body><main>
+  <div class="eyebrow">Free · Private · Browser only</div>
+  <h1>Decode an Ollama error.</h1>
+  <p class="lead">Paste the error text from your terminal. The decoder matches common memory, context, model, network, port, disk, permission, and driver failures, then gives a short recovery checklist.</p>
+  <section class="grid">
+    <section class="card">
+      <h2>Paste your log</h2>
+      <textarea id="log" spellcheck="false" placeholder="Example: Error: model requires more system memory (18.2 GiB) than is available (12.4 GiB)"></textarea>
+      <div class="actions"><button class="primary" id="decode">Decode error</button><button class="ghost" id="example">Try an example</button><button class="ghost" id="clear">Clear</button></div>
+      <div class="privacy">Your log stays in this browser. Nothing is uploaded or stored.</div>
+    </section>
+    <section class="card" aria-live="polite">
+      <div class="eyebrow">Diagnostic result</div>
+      <div id="results" class="empty">Paste an error to see likely causes and next steps.</div>
+    </section>
+  </section>
+  <section class="card cta">
+    <div><div class="eyebrow">Still stuck?</div><h2 style="margin:5px 0 0">Get a tested local AI recovery plan</h2><p>Send the error, hardware, model, OS, and goal. I’ll identify the bottleneck and give practical settings.</p></div>
+    <a class="btn" href="https://www.fiverr.com/george_hsiao" target="_blank" rel="noopener">Hire me on Fiverr</a>
+  </section>
+  <footer>Ollama Error Decoder · Pattern-based guidance, not a substitute for checking your runtime and driver documentation.</footer>
+</main>
+<script>
+const rules=[
+ {name:'Insufficient system memory',level:'high',tags:['RAM','Model fit'],re:/requires more system memory|not enough (system )?memory|cannot allocate memory|out of memory(?!.*cuda)/i,cause:'The model plus runtime overhead is larger than the available system RAM.',steps:['Close memory-heavy apps and retry.','Use a smaller model or a stronger quantization such as Q4_K_M.','Check the model size against free RAM, leaving room for the OS and context cache.']},
+ {name:'GPU or CUDA out of memory',level:'high',tags:['VRAM','GPU'],re:/cuda.*out of memory|out of memory.*cuda|failed to allocate.*(cuda|vram)|gpu.*memory/i,cause:'Model weights, context cache, or parallel requests exceed free VRAM.',steps:['Reduce context length and parallel requests.','Use a smaller quantization or model.','Check other GPU processes, then restart Ollama if memory remains reserved.']},
+ {name:'Context window exceeded',level:'high',tags:['Context','Prompt'],re:/context length|context window|input.*too long|prompt.*too long|token.*limit|exceeds.*context/i,cause:'The prompt and requested output do not fit inside the active context window.',steps:['Shorten the prompt or split the document into chunks.','Increase num_ctx only after checking KV-cache memory.','Keep output-token allowance inside the same context budget.']},
+ {name:'Ollama server is unreachable',level:'high',tags:['Server','Network'],re:/connection refused|could not connect|failed to connect|localhost:11434|ollama server not responding/i,cause:'The client cannot reach the Ollama service on the expected host and port.',steps:['Start or restart the Ollama service.','Verify the client uses the correct OLLAMA_HOST and port 11434.','If connecting remotely, check firewall and bind-address settings.']},
+ {name:'Port already in use',level:'low',tags:['Port','Process'],re:/address already in use|bind.*11434|port 11434.*in use/i,cause:'Another process is already listening on Ollama\'s port.',steps:['Check whether Ollama is already running before starting another server.','Stop the duplicate process or configure a different OLLAMA_HOST port.']},
+ {name:'Model or manifest not found',level:'low',tags:['Model','Registry'],re:/manifest.*not found|model.*not found|pull model manifest|404.*manifest|file does not exist/i,cause:'The model name, tag, local path, or registry reference does not resolve.',steps:['Run ollama list and copy the exact installed model name.','Check the tag spelling, then pull the model again.','For a Modelfile, verify every FROM path and filename.']},
+ {name:'Disk space problem',level:'high',tags:['Disk','Download'],re:/no space left|insufficient disk|disk.*full|write.*failed.*space/i,cause:'The model download or extraction cannot finish because storage is full.',steps:['Check free space on the drive containing the Ollama model directory.','Remove unused models with ollama rm.','Move the model directory only after stopping Ollama and verifying the new path.']},
+ {name:'Permission denied',level:'high',tags:['Permission','Files'],re:/permission denied|access is denied|operation not permitted/i,cause:'Ollama or the current user cannot access a model, directory, socket, or device.',steps:['Check ownership and permissions on the named path.','Avoid running the model directory from a protected system folder.','On Linux, confirm the Ollama service user can access the GPU and model files.']},
+ {name:'GPU driver or runtime mismatch',level:'high',tags:['Driver','GPU'],re:/driver.*(not found|mismatch|too old)|no compatible gpu|cuda.*(driver|library)|rocm.*(error|not found)|failed to load.*(cuda|rocm)/i,cause:'The installed GPU driver or acceleration library is missing, incompatible, or not visible to Ollama.',steps:['Confirm the GPU appears in the vendor diagnostic tool.','Update to a supported driver, then reboot.','Check that your Ollama build supports the detected GPU platform.']},
+ {name:'TLS, proxy, or DNS failure',level:'low',tags:['Network','Download'],re:/certificate|x509|tls|proxy|dns|name resolution|no such host|network is unreachable/i,cause:'The model registry request is being blocked or redirected by DNS, a proxy, TLS inspection, or network policy.',steps:['Test the registry from the same machine and network.','Check proxy and DNS settings without disabling security controls.','If on a managed network, ask the administrator whether the registry is allowed.']}
+];
+const $=id=>document.getElementById(id);function safe(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function decode(){const text=$('log').value.trim(),out=$('results');if(!text){out.className='empty';out.textContent='Paste an error to see likely causes and next steps.';return}const hits=rules.filter(r=>r.re.test(text));if(!hits.length){out.className='';out.innerHTML='<div class="finding low"><h3>No exact pattern matched</h3><p>Keep the final 20–40 log lines, then check the first explicit error rather than later cascade messages.</p><ol><li>Record your OS, Ollama version, model name, RAM, and GPU.</li><li>Restart once and reproduce with the smallest prompt.</li><li>Compare the timestamp with Ollama server logs.</li></ol></div>';return}out.className='';out.innerHTML=hits.map(r=>`<article class="finding ${r.level}"><div>${r.tags.map(t=>`<span class="pill">${safe(t)}</span>`).join('')}</div><h3>${safe(r.name)}</h3><p><strong>Likely cause:</strong> ${safe(r.cause)}</p><ol>${r.steps.map(s=>`<li>${safe(s)}</li>`).join('')}</ol></article>`).join('')}
+$('decode').addEventListener('click',decode);$('log').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter')decode()});$('example').addEventListener('click',()=>{$('log').value='Error: model requires more system memory (18.2 GiB) than is available (12.4 GiB)';decode()});$('clear').addEventListener('click',()=>{$('log').value='';decode();$('log').focus()});
+</script></body></html>
